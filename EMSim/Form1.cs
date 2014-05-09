@@ -7,7 +7,6 @@ using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using FlexDraw;
-using System.IO;
 
 namespace EMSim
 {
@@ -20,7 +19,6 @@ namespace EMSim
         {
             public double Q = 1;
             public PointD Pt = new PointD();
-            public string Name = "";
 
             public void Draw(IDrawAPI api)
             {
@@ -106,7 +104,7 @@ namespace EMSim
                     double dy = (q.Pt.Y - pt.Y);
                     double r2 = dx * dx + dy * dy;
                     //r2 = Math.Pow(r2, 0.75);
-                    //r2 *= Math.Sqrt(r2);
+                    r2 *= Math.Sqrt(r2);
                     ax += K * q.Q * dx / r2;
                     ay += K * q.Q * dy / r2;
                 }
@@ -225,8 +223,8 @@ namespace EMSim
                         double rx = cur.X - q.Pt.X;
                         double ry = cur.Y - q.Pt.Y;
                         double r2 = rx * rx + ry * ry;
-                        double fx = K * q.Q * rx / Math.Pow(r2, 2);
-                        double fy = K * q.Q * ry / Math.Pow(r2, 2);
+                        double fx = K * q.Q * rx / Math.Pow(r2, 1.5);
+                        double fy = K * q.Q * ry / Math.Pow(r2, 1.5);
                         double C = Math.Sqrt(r2) / (K * q.Q);
                         double dfxdx = C * (fy * fy - 2 * fx * fx);
                         double dfydx = C * (-3 * fx * fy);
@@ -357,20 +355,6 @@ namespace EMSim
                 _pts[i].Pt.X = 2 * r.NextDouble() - 1;
                 _pts[i].Pt.Y = 2 * r.NextDouble() - 1;
             }*/
-            var reader = new StreamReader("EMSim.txt");
-            while (!reader.EndOfStream)
-            {
-                string[] line = reader.ReadLine().Split(" \t".ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
-                if (line.Length < 3)
-                    continue;
-                string n = (line.Length > 3) ? line[3] : "";
-                double q = double.Parse(line[0]);
-                double x = double.Parse(line[1]);
-                double y = double.Parse(line[2]);
-                _pts.Add(makeCharge(q, x, y, n));
-            }
-            reader.Close();
-            /*
             _pts.Add(makeCharge(1, 0f, 0f));
             _pts.Add(makeCharge(-1, 148f, 189f));
             _pts.Add(makeCharge(-1, 190f, 160f));
@@ -380,7 +364,6 @@ namespace EMSim
             _pts.Add(makeCharge(-1, 325f, -463f));
             _pts.Add(makeCharge(-1, -328f, 527f));
             _pts.Add(makeCharge(-1, 242.5f, 81.8f));
-             */
             
             _field.Parent = this;
             _field.Update();
@@ -403,23 +386,18 @@ namespace EMSim
             switch (e.KeyChar)
             {
                 case '\b':
-                    if (_pts.Count > 0)
-                    {
-                        _pts.RemoveAt(_pts.Count - 1);
-                        _field.Update();
-                        Invalidate();
-                    }
+                    _pts.RemoveAt(_pts.Count - 1);
+                    _field.Update();
+                    Invalidate();
                     break;
                 case '+':
                     {
                         PointD mousePos = _viewport.Transform(PointToClient(Cursor.Position));
                         double width = _viewport.View.Width;
                         double height = _viewport.View.Height;
-                        double xPart = (mousePos.X - _viewport.View.Left) / width;
-                        double yPart = (mousePos.Y - _viewport.View.Bottom) / height;
                         _viewport.View = new RectangleD(
-                            mousePos.Offset(new PointD(-xPart * width / 2, -yPart * height / 2)),
-                            mousePos.Offset(new PointD((1 - xPart) * width / 2, (1 - yPart) * height / 2))
+                            mousePos.Offset(new PointD(-width / 4, -height / 4)),
+                            mousePos.Offset(new PointD(width / 4, height / 4))
                             );
                         Invalidate();
                     }
@@ -447,25 +425,6 @@ namespace EMSim
                 case ' ':
                     _field.JustMap = !_field.JustMap;
                     Invalidate();
-                    break;
-                case 'S':
-                case 's':
-                    {
-                        var writer = new StreamWriter("EMSim.txt");
-                        foreach (Charge q in _pts)
-                        {
-                            string line = string.Format("{0}\t{1}\t{2}\t{3}",
-                                q.Q, q.Pt.X, q.Pt.Y, q.Name);
-                            writer.WriteLine(line);
-                        }
-                        writer.Flush();
-                        writer.Close();
-                    }
-                    break;
-                case 'Q':
-                case 'q':
-                    _curCharge *= -1;
-                    _lblCharge.Text = string.Format("Charge: {0}", _curCharge);
                     break;
                 default:
                     break;
@@ -497,9 +456,7 @@ namespace EMSim
             }
             else
             {
-                var frm = new Form2();
-                frm.ShowDialog(this);
-                _pts.Add(makeCharge(_curCharge, mousePos.X, mousePos.Y, frm.PointName));
+                _pts.Add(makeCharge(_curCharge, mousePos.X, mousePos.Y));
                 _field.Update();
                 Invalidate();
             }
@@ -510,13 +467,12 @@ namespace EMSim
             return new PointD(2 * pt.X + 786, 1580 - 2 * pt.Y);
         }
 
-        Charge makeCharge(double q, double x, double y, string name)
+        Charge makeCharge(double q, double x, double y)
         {
             Charge qq = new Charge();
             qq.Q = q;
             qq.Pt.X = x;
             qq.Pt.Y = y;
-            qq.Name = name;
             return qq;
         }
 
